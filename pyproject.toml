@@ -1,0 +1,13 @@
+[project]
+name = "ComfyUI-Diffusion-SDXL-Video"
+description = "ComfyUI node for a frame by frame Diffusion."
+version = "0.0.1"
+license = { text = "Apache License 2.0" }
+
+[project.urls]
+Repository = "https://github.com/Polygoningenieur/ComfyUI-Diffusion-SDXL-Video"
+
+[tool.comfy]
+PublisherId = "polygoningenieur"
+DisplayName = "ComfyUI-Diffusion-SDXL-Video"
+Icon = ""
