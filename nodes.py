@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 
 class DiffusionSDXLFrameByFrame:
@@ -11,17 +12,8 @@ class DiffusionSDXLFrameByFrame:
                 "positive": ("CONDITIONING",),
                 "negative": ("CONDITIONING",),
                 "vae": ("VAE",),
-                "sampler": ("SAMPLER",),
-                "sigmas": ("SIGMAS",),
             },
             "optional": {
-                "latent_image": (
-                    "LATENT",
-                    {
-                        "tooltip": "Plug in a latent image for the sampler, otherwise an empty latent is used."
-                    },
-                ),
-                "opt_background": ("LATENT",),
                 "start": (
                     "INT",
                     {
@@ -49,30 +41,6 @@ class DiffusionSDXLFrameByFrame:
                         "tooltip": "How much frames to step over each iteration.",
                     },
                 ),
-                "multiplier": (
-                    "FLOAT",
-                    {
-                        "default": 0.18215,
-                        "min": 0.0,
-                        "max": 1.0,
-                        "step": 0.001,
-                        "tooltip": "Conditioning Multiplier",
-                    },
-                ),
-                "add_noise": (
-                    "BOOLEAN",
-                    {"default": True, "tooltip": "Add noise to sampler."},
-                ),
-                "noise_seed": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "control_after_generate": True,
-                        "tooltip": "Sampling Noise Seed",
-                    },
-                ),
                 "cfg": (
                     "FLOAT",
                     {
@@ -90,8 +58,8 @@ class DiffusionSDXLFrameByFrame:
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("images",)
     FUNCTION = "main"
-    CATEGORY = "IC-Light"
-    DESCRIPTION = """Applies IC-Light to each images of images input. Encodes, conditions, samples and decodes them.\n\nPlug in a latent image for the sampler, otherwise an empty latent is used.\n\nVersion: 0.0.9"""
+    CATEGORY = "conditioning"
+    DESCRIPTION = """Applies Diffusion SDXL for each input image individually and outputs the processed images.\n\nVersion: 0.0.2"""
 
     def main(
         self,
@@ -100,29 +68,63 @@ class DiffusionSDXLFrameByFrame:
         positive,
         negative,
         vae,
-        sampler,
-        sigmas,
-        latent_image=None,
-        opt_background=None,
         start: int = 1,
         stop: int = 0,
         step: int = 1,
-        multiplier=0.18215,
-        add_noise=True,
-        noise_seed=0,
         cfg=8.0,
     ):
 
-        logging.info("------------------")
+        logging.info("-----------------------------------")
         logging.info("| Diffusion SDXL (Frame by Frame) |")
-        logging.info("------------------")
+        logging.info("-----------------------------------")
+
+        # cut and slice images to provided start, stop and step
+        total = (
+            int(images.shape[0]) if hasattr(images, "shape") and images.ndim >= 1 else 0
+        )
+
+        if total == 0:
+            return ([],)
+
+        start = max(1, int(start))
+        step = max(1, int(step))
+
+        # stop: 0 => use full length; otherwise inclusive index
+        if stop <= 0 or stop >= total:
+            stop = total
+        else:
+            stop = min(int(stop) + 1, total)  # inclusive
+
+        if start >= total:
+            return ([],)
+
+        images = images[start:stop:step].contiguous()
+
+        # * ENCODE
+        try:
+            # torch.Tensor
+            encoded: Any = vae.encode(images)
+        except Exception as e:
+            logging.error(f"Error encoding images: {e}")
+            return ([],)
+
+        # samples is a tensor
+        if encoded is None or encoded.numel() == 0:
+            logging.error(f"Could not get samples from encoded images.")
+            return ([],)
+
+        decoded_batches = []
+
+        for index, latent in enumerate(encoded):
+            # each image latent is a tensor
+            logging.info(f"Frame {index + 1}/{len(images)}")
 
         return (images,)
 
 
 NODE_CLASS_MAPPINGS = {
-    "Diffusion SDXL (Frame by Frame)": DiffusionSDXLFrameByFrame,
+    "DiffusionSDXLFrameByFrame": DiffusionSDXLFrameByFrame,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "Diffusion SDXL (Frame by Frame)": "IC-Light Video (Frame by Frame)",
+    "DiffusionSDXLFrameByFrame": "Diffusion SDXL (Frame by Frame)",
 }
