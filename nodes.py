@@ -17,6 +17,17 @@ class DiffusionSDXLFrameByFrame:
                 "negative": ("CONDITIONING",),
                 "control_net": ("CONTROL_NET",),
                 "vae": ("VAE",),
+                "cfg": (
+                    "FLOAT",
+                    {
+                        "default": 8.0,
+                        "min": 0.0,
+                        "max": 100.0,
+                        "step": 0.1,
+                        "round": 0.01,
+                        "tooltip": "Sampling cfg\nThe Classifier-Free Guidance scale balances creativity and adherence to the prompt. Higher values result in images more closely matching the prompt however too high values will negatively impact quality.",
+                    },
+                ),
                 "sampler_name": (
                     comfy.samplers.KSampler.SAMPLERS,
                     {
@@ -31,15 +42,33 @@ class DiffusionSDXLFrameByFrame:
                 ),
             },
             "optional": {
-                "cfg": (
+                "sampler_seed": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "The random seed used for creating the noise.",
+                    },
+                ),
+                "sampler_steps": (
+                    "INT",
+                    {
+                        "default": 20,
+                        "min": 1,
+                        "max": 10000,
+                        "tooltip": "The number of steps used in the denoising process.",
+                    },
+                ),
+                "sampler_denoise": (
                     "FLOAT",
                     {
-                        "default": 8.0,
+                        "default": 1.0,
                         "min": 0.0,
-                        "max": 100.0,
-                        "step": 0.1,
-                        "round": 0.01,
-                        "tooltip": "Sampling cfg\nThe Classifier-Free Guidance scale balances creativity and adherence to the prompt. Higher values result in images more closely matching the prompt however too high values will negatively impact quality.",
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "The amount of denoising applied, lower values will maintain the structure of the initial image allowing for image to image sampling.",
                     },
                 ),
                 "controlnet_strength": (
@@ -70,25 +99,6 @@ class DiffusionSDXLFrameByFrame:
                         "max": 1.0,
                         "step": 0.001,
                         "tooltip": "ControlNet End Percent",
-                    },
-                ),
-                "sampler_seed": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "control_after_generate": True,
-                        "tooltip": "The random seed used for creating the noise.",
-                    },
-                ),
-                "sampler_steps": (
-                    "INT",
-                    {
-                        "default": 20,
-                        "min": 1,
-                        "max": 10000,
-                        "tooltip": "The number of steps used in the denoising process.",
                     },
                 ),
                 "frame_start": (
@@ -125,7 +135,7 @@ class DiffusionSDXLFrameByFrame:
     RETURN_NAMES = ("images",)
     FUNCTION = "main"
     CATEGORY = "conditioning"
-    DESCRIPTION = """Applies Diffusion SDXL for each input image individually and outputs the processed images.\n\nVersion: 0.0.6"""
+    DESCRIPTION = """Applies Diffusion SDXL for each input image individually and outputs the processed images.\n\nVersion: 0.0.7"""
 
     def main(
         self,
@@ -135,14 +145,15 @@ class DiffusionSDXLFrameByFrame:
         negative,
         control_net,
         vae,
+        cfg: float,
         sampler_name,
         sampler_scheduler,
-        cfg=8.0,
+        sampler_seed: int = 0,
+        sampler_steps: int = 20,
+        sampler_denoise: float = 1.0,
         controlnet_strength: float = 1.0,
         controlnet_start_percent: float = 0.0,
         controlnet_end_percent: float = 1.0,
-        sampler_seed: int = 0,
-        sampler_steps: int = 20,
         frame_start: int = 1,
         frame_stop: int = 0,
         frame_step: int = 1,
@@ -244,7 +255,7 @@ class DiffusionSDXLFrameByFrame:
                     positive=controlnet_positive,
                     negative=controlnet_negative,
                     latent_image=latent_dict,
-                    denoise=1.0,  # TODO expose
+                    denoise=sampler_denoise,
                 )
             except Exception as e:
                 logging.error(f"Error sampling image: {e}")
