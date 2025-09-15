@@ -2,6 +2,7 @@ import torch
 import logging
 import traceback
 from typing import Any
+import comfy.samplers
 from nodes import VAEEncode, ControlNetApplyAdvanced, KSampler
 
 
@@ -16,6 +17,18 @@ class DiffusionSDXLFrameByFrame:
                 "negative": ("CONDITIONING",),
                 "control_net": ("CONTROL_NET",),
                 "vae": ("VAE",),
+                "sampler_name": (
+                    comfy.samplers.KSampler.SAMPLERS,
+                    {
+                        "tooltip": "The algorithm used when sampling, this can affect the quality, speed, and style of the generated output."
+                    },
+                ),
+                "sampler_scheduler": (
+                    comfy.samplers.KSampler.SCHEDULERS,
+                    {
+                        "tooltip": "The scheduler controls how noise is gradually removed to form the image."
+                    },
+                ),
             },
             "optional": {
                 "cfg": (
@@ -26,7 +39,7 @@ class DiffusionSDXLFrameByFrame:
                         "max": 100.0,
                         "step": 0.1,
                         "round": 0.01,
-                        "tooltip": "Sampling cfg",
+                        "tooltip": "Sampling cfg\nThe Classifier-Free Guidance scale balances creativity and adherence to the prompt. Higher values result in images more closely matching the prompt however too high values will negatively impact quality.",
                     },
                 ),
                 "controlnet_strength": (
@@ -57,6 +70,25 @@ class DiffusionSDXLFrameByFrame:
                         "max": 1.0,
                         "step": 0.001,
                         "tooltip": "ControlNet End Percent",
+                    },
+                ),
+                "sampler_seed": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "The random seed used for creating the noise.",
+                    },
+                ),
+                "sampler_steps": (
+                    "INT",
+                    {
+                        "default": 20,
+                        "min": 1,
+                        "max": 10000,
+                        "tooltip": "The number of steps used in the denoising process.",
                     },
                 ),
                 "frame_start": (
@@ -93,7 +125,7 @@ class DiffusionSDXLFrameByFrame:
     RETURN_NAMES = ("images",)
     FUNCTION = "main"
     CATEGORY = "conditioning"
-    DESCRIPTION = """Applies Diffusion SDXL for each input image individually and outputs the processed images.\n\nVersion: 0.0.4"""
+    DESCRIPTION = """Applies Diffusion SDXL for each input image individually and outputs the processed images.\n\nVersion: 0.0.5"""
 
     def main(
         self,
@@ -103,10 +135,14 @@ class DiffusionSDXLFrameByFrame:
         negative,
         control_net,
         vae,
+        sampler_name,
+        sampler_scheduler,
         cfg=8.0,
         controlnet_strength: float = 1.0,
         controlnet_start_percent: float = 0.0,
         controlnet_end_percent: float = 1.0,
+        sampler_seed: int = 0,
+        sampler_steps: int = 20,
         frame_start: int = 1,
         frame_stop: int = 0,
         frame_step: int = 1,
@@ -189,11 +225,11 @@ class DiffusionSDXLFrameByFrame:
                 sampled_latent = KSampler.sample(
                     self,
                     model=model,
-                    seed=0,  # provide a valid seed
-                    steps=20,  # provide valid steps
+                    seed=sampler_seed,
+                    steps=sampler_steps,
                     cfg=cfg,
-                    sampler_name="euler",  # provide valid sampler_name
-                    scheduler="normal",  # provide valid scheduler
+                    sampler_name=sampler_name,
+                    scheduler=sampler_scheduler,
                     positive=controlnet_positive,
                     negative=controlnet_negative,
                     latent_image=latent_dict,
