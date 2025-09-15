@@ -125,7 +125,7 @@ class DiffusionSDXLFrameByFrame:
     RETURN_NAMES = ("images",)
     FUNCTION = "main"
     CATEGORY = "conditioning"
-    DESCRIPTION = """Applies Diffusion SDXL for each input image individually and outputs the processed images.\n\nVersion: 0.0.5"""
+    DESCRIPTION = """Applies Diffusion SDXL for each input image individually and outputs the processed images.\n\nVersion: 0.0.6"""
 
     def main(
         self,
@@ -190,21 +190,31 @@ class DiffusionSDXLFrameByFrame:
         decoded_batches = []
 
         for index in range(samples_tensor.shape[0]):
-            latent = samples_tensor[index].unsqueeze(0)  # shape [1, 4, 64, 64]
             # each image latent is a tensor
             logging.info(f"Frame {index + 1}/{len(images)}")
+
+            latent = samples_tensor[index].unsqueeze(0)  # shape [1, 4, 64, 64]
+
+            # Prepare control image with batch dim: [1,H,W,C]
+            control_image = images[index]
+            if control_image.ndim == 3:
+                control_image = control_image.unsqueeze(0)
+            # Ensure float32
+            if control_image.dtype != torch.float32:
+                control_image = control_image.float()
 
             # * CONTROL NET
             controlnet_positive: list = None
             controlnet_negative: list = None
             try:
+                # controlnet expects an image, not a latent
                 (controlnet_positive, controlnet_negative) = (
                     ControlNetApplyAdvanced.apply_controlnet(
                         self,
                         positive=positive,
                         negative=negative,
                         control_net=control_net,
-                        image=latent.squeeze(0),
+                        image=control_image,
                         strength=controlnet_strength,
                         start_percent=controlnet_start_percent,
                         end_percent=controlnet_end_percent,
@@ -219,8 +229,9 @@ class DiffusionSDXLFrameByFrame:
                 continue
 
             # * SAMPLING
-            sampled_latent: dict[str, Any] = None  # {"samples": tensor}
+            sampled_latent: tuple[dict[str, Any]] = None  # ({"samples": tensor()},)
             latent_dict = {"samples": latent}
+
             try:
                 sampled_latent = KSampler.sample(
                     self,
@@ -233,19 +244,19 @@ class DiffusionSDXLFrameByFrame:
                     positive=controlnet_positive,
                     negative=controlnet_negative,
                     latent_image=latent_dict,
-                    denoise=1.0,
+                    denoise=1.0,  # TODO expose
                 )
             except Exception as e:
                 logging.error(f"Error sampling image: {e}")
                 # logging.error(traceback.format_exc())
                 continue
+
             if sampled_latent[0] is None:
                 continue
 
             # decode sampled latent images -> tensor [B,H,W,C]
             try:
-                # TODO change to KSampler sampled latent
-                decoded = vae.decode(sampled_latent[0])
+                decoded = vae.decode(sampled_latent[0].get("samples"))
                 # Flatten any extra batch/temporal dims to [N,H,W,C]
                 if hasattr(decoded, "shape") and len(decoded.shape) == 5:
                     decoded = decoded.reshape(
@@ -257,9 +268,10 @@ class DiffusionSDXLFrameByFrame:
 
             decoded_batches.append(decoded)
 
-        # Concatenate all frames into a single IMAGE tensor [N,H,W,C]
         if len(decoded_batches) == 0:
             return (images,)
+
+        # Concatenate all frames into a single IMAGE tensor [N,H,W,C]
         frames_out = torch.cat(decoded_batches, dim=0)
         return (frames_out,)
 

@@ -2,6 +2,6 @@
 
 Apply Diffusion SDXL to multiple images (for example frames of a video ).
 
-Use compatible checkpoint and LoRa models!
+Use compatible checkpoint, LoRa model and ControlNet!
 
 Workflow:
