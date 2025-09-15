@@ -18,33 +18,6 @@ class DiffusionSDXLFrameByFrame:
                 "vae": ("VAE",),
             },
             "optional": {
-                "start": (
-                    "INT",
-                    {
-                        "default": 1,
-                        "min": 1,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "tooltip": "Frame to start at.",
-                    },
-                ),
-                "stop": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "tooltip": "Frame to stop at.\nLeave at 0 to use all frames.",
-                    },
-                ),
-                "step": (
-                    "INT",
-                    {
-                        "default": 1,
-                        "min": 1,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "tooltip": "How much frames to step over each iteration.",
-                    },
-                ),
                 "cfg": (
                     "FLOAT",
                     {
@@ -56,6 +29,63 @@ class DiffusionSDXLFrameByFrame:
                         "tooltip": "Sampling cfg",
                     },
                 ),
+                "controlnet_strength": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 10.0,
+                        "step": 0.01,
+                        "tooltip": "ControlNet Strength",
+                    },
+                ),
+                "controlnet_start_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.001,
+                        "tooltip": "ControlNet Start Percent",
+                    },
+                ),
+                "controlnet_end_percent": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.001,
+                        "tooltip": "ControlNet End Percent",
+                    },
+                ),
+                "frame_start": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "tooltip": "Frame to start at.",
+                    },
+                ),
+                "frame_stop": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "tooltip": "Frame to stop at.\nLeave at 0 to use all frames.",
+                    },
+                ),
+                "frame_step": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "tooltip": "How much frames to step over each iteration.",
+                    },
+                ),
             },
         }
 
@@ -63,7 +93,7 @@ class DiffusionSDXLFrameByFrame:
     RETURN_NAMES = ("images",)
     FUNCTION = "main"
     CATEGORY = "conditioning"
-    DESCRIPTION = """Applies Diffusion SDXL for each input image individually and outputs the processed images.\n\nVersion: 0.0.3"""
+    DESCRIPTION = """Applies Diffusion SDXL for each input image individually and outputs the processed images.\n\nVersion: 0.0.4"""
 
     def main(
         self,
@@ -73,10 +103,13 @@ class DiffusionSDXLFrameByFrame:
         negative,
         control_net,
         vae,
-        start: int = 1,
-        stop: int = 0,
-        step: int = 1,
         cfg=8.0,
+        controlnet_strength: float = 1.0,
+        controlnet_start_percent: float = 0.0,
+        controlnet_end_percent: float = 1.0,
+        frame_start: int = 1,
+        frame_stop: int = 0,
+        frame_step: int = 1,
     ):
 
         logging.info("-----------------------------------")
@@ -90,19 +123,19 @@ class DiffusionSDXLFrameByFrame:
         if total == 0:
             return ([],)
 
-        start = max(1, int(start))
-        step = max(1, int(step))
+        frame_start = max(1, int(frame_start))
+        frame_step = max(1, int(frame_step))
 
         # stop: 0 => use full length; otherwise inclusive index
-        if stop <= 0 or stop >= total:
-            stop = total
+        if frame_stop <= 0 or frame_stop >= total:
+            frame_stop = total
         else:
-            stop = min(int(stop) + 1, total)  # inclusive
+            frame_stop = min(int(frame_stop) + 1, total)  # inclusive
 
-        if start >= total:
+        if frame_start >= total:
             return ([],)
 
-        images = images[start:stop:step].contiguous()
+        images = images[frame_start:frame_stop:frame_step].contiguous()
 
         # * ENCODE
         try:
@@ -136,9 +169,9 @@ class DiffusionSDXLFrameByFrame:
                         negative=negative,
                         control_net=control_net,
                         image=latent.squeeze(0),
-                        strength=0.5,  # TODO input
-                        start_percent=0.0,  # TODO input
-                        end_percent=1.0,  # TODO input
+                        strength=controlnet_strength,
+                        start_percent=controlnet_start_percent,
+                        end_percent=controlnet_end_percent,
                         vae=vae,
                         extra_concat=[],
                     )
