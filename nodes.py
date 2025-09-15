@@ -135,7 +135,7 @@ class DiffusionSDXLFrameByFrame:
     RETURN_NAMES = ("images",)
     FUNCTION = "main"
     CATEGORY = "conditioning"
-    DESCRIPTION = """Applies Diffusion SDXL for each input image individually and outputs the processed images.\n\nVersion: 0.0.8"""
+    DESCRIPTION = """Applies Diffusion SDXL for each input image individually and outputs the processed images.\n\nVersion: 0.1.0"""
 
     def main(
         self,
@@ -291,5 +291,5 @@ NODE_CLASS_MAPPINGS = {
     "DiffusionSDXLFrameByFrame": DiffusionSDXLFrameByFrame,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "DiffusionSDXLFrameByFrame": "Diffusion SDXL (Frame by Frame)",
+    "DiffusionSDXLFrameByFrame": "Diffusion SDXL Video (Frame by Frame)",
 }
